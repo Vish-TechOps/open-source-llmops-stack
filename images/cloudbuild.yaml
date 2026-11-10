@@ -1,0 +1,22 @@
+# Generic Cloud Build recipe used by scripts/b13-build-images.sh for all three images.
+# Build args that a Dockerfile does not declare are ignored (with a warning).
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --platform=linux/amd64
+      - --build-arg=LITELLM_VERSION=${_LITELLM_VERSION}
+      - --build-arg=LITELLM_SHA256=${_LITELLM_SHA256}
+      - --build-arg=LANGFUSE_SDK_SPEC=${_LANGFUSE_SDK_SPEC}
+      - -t
+      - ${_IMAGE}
+      - .
+images:
+  - ${_IMAGE}
+substitutions:
+  _IMAGE: ""
+  _LITELLM_VERSION: ""
+  _LITELLM_SHA256: ""
+  _LANGFUSE_SDK_SPEC: "langfuse>=4.7,<5"
+options:
+  logging: CLOUD_LOGGING_ONLY

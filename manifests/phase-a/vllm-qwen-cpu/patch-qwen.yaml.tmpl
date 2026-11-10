@@ -1,0 +1,49 @@
+# Rendered by a12 (envsubst: MODEL, VLLM_CPU_IMAGE, VLLM_REPLICAS).
+# Overrides llm-d's CPU reference (Llama-3.2-3B on 64 cores) for Qwen3-0.6B on 8 vCPU.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: optimized-baseline-cpu-vllm-decode
+spec:
+  replicas: ${VLLM_REPLICAS}
+  template:
+    spec:
+      nodeSelector:
+        workload: model
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: model
+          effect: NoSchedule
+      containers:
+        - name: modelserver
+          image: ${VLLM_CPU_IMAGE}
+          args:
+            - "${MODEL}"
+            - "--disable-access-log-for-endpoints=/health,/metrics,/v1/models"
+            - "--disable-hybrid-kv-cache-manager"
+            - "--max_model_len=8192"
+            - "--enable-prefix-caching"
+            - "--shutdown-timeout=45"
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: llm-d-hf-token
+                  key: HF_TOKEN
+                  optional: true          # Qwen3-0.6B is public; the secret is optional
+            - name: VLLM_CPU_KVCACHE_SPACE
+              value: "6"                  # GiB of KV cache
+          resources:
+            # No CPU limit: vLLM can burst into the node's spare cores without CFS throttling.
+            requests:
+              cpu: "6"
+              memory: 16Gi
+            limits:
+              cpu: null
+              memory: 24Gi
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi

@@ -1,0 +1,53 @@
+# KServe LLMInferenceService: ONE resource that creates the vLLM pods, the llm-d
+# Endpoint Picker (KServe's "scheduler") and the InferencePool.
+# envsubst: LLMISVC_NAME, NS_LLMD, MODEL, VLLM_CPU_IMAGE, VLLM_REPLICAS
+#
+# The HTTPRoute is "bring your own" (route.http.refs): KServe's managed route sets
+# request timeouts of 0s that GKE's Gateway may reject, so c11 creates the route.
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: ${LLMISVC_NAME}
+  namespace: ${NS_LLMD}
+spec:
+  model:
+    uri: hf://${MODEL}
+    name: ${MODEL}
+  replicas: ${VLLM_REPLICAS}
+  router:
+    scheduler: {}                 # KServe-managed EPP + InferencePool (<name>-inference-pool)
+    route:
+      http:
+        refs:
+          - name: ${LLMISVC_NAME}-route
+  template:
+    nodeSelector:
+      workload: model
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: model
+        effect: NoSchedule
+    containers:
+      - name: main
+        image: ${VLLM_CPU_IMAGE}
+        securityContext:
+          runAsNonRoot: false     # the vLLM CPU image runs as root
+          capabilities:
+            add: ["SYS_NICE"]     # NUMA/thread binding, as in llm-d's CPU overlay
+          seccompProfile:
+            type: Unconfined
+        env:
+          - name: VLLM_CPU_KVCACHE_SPACE
+            value: "6"
+          - name: VLLM_CPU_NUM_OF_RESERVED_CPU
+            value: "1"
+          - name: VLLM_ADDITIONAL_ARGS
+            value: "--max-model-len 8192 --enable-prefix-caching --disable-hybrid-kv-cache-manager"
+        resources:
+          requests:
+            cpu: "6"
+            memory: 16Gi
+          limits:
+            memory: 24Gi
+        # Probes come from KServe's default template (startup: /health, up to 10 min).

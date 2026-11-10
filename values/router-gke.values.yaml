@@ -1,0 +1,12 @@
+## GKE overrides for the llm-d router (gateway chart, provider gke).
+## Layered after llm-d's base.values.yaml and optimized-baseline.values.yaml.
+## base.values.yaml asks 4 CPU / 8 GiB for the Endpoint Picker; this demo needs far less.
+## (In gateway mode there is no Envoy sidecar: the GKE load balancer is the proxy.)
+router:
+  epp:
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        memory: 2Gi

@@ -1,0 +1,71 @@
+# LiteLLM proxy config — GCP phase B. Rendered by scripts/b15-litellm.sh into a ConfigMap
+# (envsubst: MODEL, GATEWAY_IP, PROJECT_ID, VERTEX_*, NS_APP). Secrets come from env (os.environ/...).
+
+model_list:
+  # Self-hosted path: LiteLLM -> GKE Inference Gateway (internal ALB) -> llm-d EPP -> vLLM CPU pod
+  - model_name: qwen-cpu
+    litellm_params:
+      model: openai/${MODEL}
+      api_base: http://${GATEWAY_IP}/v1
+      api_key: "not-needed"
+      timeout: 300
+      # Qwen3 thinks out loud by default; turn it off so answers (and Ragas scores) are clean.
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+    model_info:
+      description: "Qwen3-0.6B on vLLM CPU behind llm-d (GKE Inference Gateway)"
+
+  # Managed path: Vertex AI Gemini via Workload Identity (no key anywhere)
+  - model_name: gemini
+    litellm_params:
+      model: vertex_ai/${VERTEX_CHAT_MODEL}
+      vertex_project: ${PROJECT_ID}
+      vertex_location: ${VERTEX_LOCATION}
+      timeout: 120
+    model_info:
+      description: "Vertex AI ${VERTEX_CHAT_MODEL} (also the Ragas judge)"
+
+  # Embeddings for Ragas answer-relevancy
+  - model_name: gemini-embedding
+    litellm_params:
+      model: vertex_ai/${VERTEX_EMBEDDING_MODEL}
+      vertex_project: ${PROJECT_ID}
+      vertex_location: ${VERTEX_EMBEDDING_LOCATION}
+    model_info:
+      mode: embedding
+
+litellm_settings:
+  success_callback: ["langfuse"]
+  failure_callback: ["langfuse"]
+  drop_params: true
+  num_retries: 0
+  # Self-hosted path down -> answer from Gemini instead.
+  fallbacks: [{"qwen-cpu": ["gemini"]}]
+
+# Guardrails AI server (scripts/b14). One guard per check; see images/guardrails/config.py.
+guardrails:
+  - guardrail_name: topic-guard
+    litellm_params:
+      guardrail: guardrails_ai
+      guard_name: topic-guard
+      mode: pre_call
+      api_base: http://guardrails.${NS_APP}.svc.cluster.local:8000
+      default_on: true
+  - guardrail_name: pii-mask
+    litellm_params:
+      guardrail: guardrails_ai
+      guard_name: pii-mask-guard
+      mode: pre_call
+      api_base: http://guardrails.${NS_APP}.svc.cluster.local:8000
+      default_on: true
+  - guardrail_name: output-pii
+    litellm_params:
+      guardrail: guardrails_ai
+      guard_name: output-guard
+      mode: post_call
+      api_base: http://guardrails.${NS_APP}.svc.cluster.local:8000
+      default_on: true
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

@@ -1,0 +1,64 @@
+# LiteLLM proxy (envsubst: NS_APP, LITELLM_IMAGE)
+# ServiceAccount "litellm" is bound to roles/aiplatform.user via Workload Identity (b10),
+# so Vertex AI calls need no key.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: litellm
+  namespace: ${NS_APP}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm
+  namespace: ${NS_APP}
+  labels: {app: litellm}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: litellm}
+  template:
+    metadata:
+      labels: {app: litellm}
+      annotations:
+        checksum/config: "${CONFIG_SHA}"   # restarts the pod when the config changes
+    spec:
+      serviceAccountName: litellm
+      containers:
+        - name: litellm
+          image: ${LITELLM_IMAGE}
+          args: ["--config", "/etc/litellm/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
+          ports:
+            - {name: http, containerPort: 4000}
+          envFrom:
+            - secretRef: {name: litellm-env}
+          volumeMounts:
+            - {name: config, mountPath: /etc/litellm, readOnly: true}
+          readinessProbe:
+            httpGet: {path: /health/liveliness, port: 4000}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health/liveliness, port: 4000}
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests: {cpu: 500m, memory: 1Gi}
+            limits: {memory: 2Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+      volumes:
+        - name: config
+          configMap: {name: litellm-config}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm
+  namespace: ${NS_APP}
+spec:
+  selector: {app: litellm}
+  ports:
+    - {name: http, port: 4000, targetPort: 4000}

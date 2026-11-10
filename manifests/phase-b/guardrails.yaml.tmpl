@@ -1,0 +1,47 @@
+# Guardrails AI server (envsubst: NS_APP, GUARDRAILS_IMAGE)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guardrails
+  namespace: ${NS_APP}
+  labels: {app: guardrails}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: guardrails}
+  template:
+    metadata:
+      labels: {app: guardrails}
+    spec:
+      containers:
+        - name: guardrails
+          image: ${GUARDRAILS_IMAGE}
+          ports:
+            - {name: http, containerPort: 8000}
+          env:
+            - name: GUARD_BANNED_TOPICS
+              value: "make a bomb,build a weapon,credit card dump,bypass authentication"
+          readinessProbe:
+            httpGet: {path: /health-check, port: 8000}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health-check, port: 8000}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 200m, memory: 512Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: guardrails
+  namespace: ${NS_APP}
+spec:
+  selector: {app: guardrails}
+  ports:
+    - {name: http, port: 8000, targetPort: 8000}

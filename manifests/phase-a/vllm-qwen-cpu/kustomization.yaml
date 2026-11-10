@@ -1,0 +1,16 @@
+# Qwen3-0.6B on vLLM CPU, sized for one pod per c3-standard-8 node.
+# a12 copies this directory into the llm-d repo at
+#   guides/optimized-baseline/modelserver/cpu/vllm/qwen3-gke/
+# so it builds on llm-d's own CPU base (image component, graceful shutdown,
+# llm-d.ai/guide=optimized-baseline labels that the router's InferencePool selects).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+labels:
+  - pairs:
+      llm-d.ai/model: Qwen3-0.6B
+    includeSelectors: true
+    includeTemplates: true
+patches:
+  - path: patch-qwen.yaml

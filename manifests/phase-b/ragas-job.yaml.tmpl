@@ -1,0 +1,38 @@
+# Ragas evaluation Job (envsubst: NS_APP, RAGAS_IMAGE, RUN_ID, RAGAS_MODELS)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ragas-${RUN_ID}
+  namespace: ${NS_APP}
+  labels: {app: ragas}
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels: {app: ragas}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: ragas
+          image: ${RAGAS_IMAGE}
+          env:
+            - {name: RUN_ID, value: "${RUN_ID}"}
+            - {name: LITELLM_BASE_URL, value: "http://litellm.${NS_APP}.svc.cluster.local:4000/v1"}
+            - {name: MODELS, value: "${RAGAS_MODELS}"}
+            - {name: JUDGE_MODEL, value: "gemini"}
+            - {name: EMBEDDING_MODEL, value: "gemini-embedding"}
+            - name: LITELLM_API_KEY
+              valueFrom: {secretKeyRef: {name: litellm-env, key: LITELLM_MASTER_KEY}}
+            - name: LANGFUSE_HOST
+              valueFrom: {secretKeyRef: {name: litellm-env, key: LANGFUSE_HOST}}
+            - name: LANGFUSE_PUBLIC_KEY
+              valueFrom: {secretKeyRef: {name: litellm-env, key: LANGFUSE_PUBLIC_KEY}}
+            - name: LANGFUSE_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: litellm-env, key: LANGFUSE_SECRET_KEY}}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true

@@ -1,0 +1,24 @@
+# Route from the phase A Inference Gateway to KServe's InferencePool.
+# envsubst: LLMISVC_NAME, NS_LLMD
+# While phase A still serves "/", this rule only matches requests carrying the header
+# x-llm-backend: kserve (more specific matches win), so both stacks run side by side.
+# c13 removes the header match to make KServe the default.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ${LLMISVC_NAME}-route
+  namespace: ${NS_LLMD}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: llm-d-inference-gateway
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /}
+          headers:
+            - {type: Exact, name: x-llm-backend, value: kserve}
+      backendRefs:
+        - group: inference.networking.k8s.io
+          kind: InferencePool
+          name: ${LLMISVC_NAME}-inference-pool

@@ -1,0 +1,36 @@
+# GKE load-balancer settings for KServe's InferencePool (the llm-d chart creates the same
+# two objects for phase A). Without the HealthCheckPolicy GKE probes "/" and vLLM answers 404.
+# envsubst: LLMISVC_NAME, NS_LLMD
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: ${LLMISVC_NAME}-pool
+  namespace: ${NS_LLMD}
+spec:
+  targetRef:
+    group: inference.networking.k8s.io
+    kind: InferencePool
+    name: ${LLMISVC_NAME}-inference-pool
+  default:
+    timeoutSec: 2
+    checkIntervalSec: 2
+    config:
+      type: HTTP
+      httpHealthCheck:
+        requestPath: /health
+        port: 8000
+---
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: ${LLMISVC_NAME}-pool
+  namespace: ${NS_LLMD}
+spec:
+  targetRef:
+    group: inference.networking.k8s.io
+    kind: InferencePool
+    name: ${LLMISVC_NAME}-inference-pool
+  default:
+    timeoutSec: 300
+    logging:
+      enabled: true

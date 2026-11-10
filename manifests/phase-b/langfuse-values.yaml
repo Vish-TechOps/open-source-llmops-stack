@@ -1,0 +1,55 @@
+# Langfuse Helm chart 2.2.4 (Langfuse v4) — small, single-replica install for a learning cluster.
+# Based on the chart's examples/minimal-installation. All passwords live in the Secret
+# "langfuse" and the headless-init values in "langfuse-init"; both are created by b12.
+langfuse:
+  encryptionKey:
+    secretKeyRef: {name: langfuse, key: encryption-key}
+  salt:
+    secretKeyRef: {name: langfuse, key: salt}
+  nextauth:
+    # You open the UI through `kubectl port-forward` (b12 prints the command).
+    url: http://localhost:3000
+    secret:
+      secretKeyRef: {name: langfuse, key: nextauth-secret}
+  # Headless initialization: org, project, API keys and the admin user are created at
+  # first start from these env vars, so LiteLLM can log without any clicks in the UI.
+  additionalEnvFrom:
+    - secretRef:
+        name: langfuse-init
+
+postgresql:
+  auth:
+    existingSecret: langfuse
+    secretKeys:
+      adminPasswordKey: postgresql-password
+      userPasswordKey: postgresql-password
+  settings:
+    existingSecret: langfuse
+  userDatabase:
+    existingSecret: langfuse
+
+clickhouse:
+  auth:
+    existingSecret: langfuse
+    existingSecretKey: clickhouse-password
+  cluster:
+    replicas: 1            # 1 is a valid single-pod cluster; 2+ needs Keeper
+    storage:
+      size: 20Gi
+  keeper:
+    enabled: false
+
+redis:
+  auth:
+    existingSecret: langfuse
+    existingSecretPasswordKey: redis-password
+    usersExistingSecret: langfuse
+
+s3:
+  auth:
+    existingSecret: langfuse
+    rootUserSecretKey: s3-user
+    rootPasswordSecretKey: s3-password
+  allInOne:
+    s3:
+      existingConfigSecret: langfuse
